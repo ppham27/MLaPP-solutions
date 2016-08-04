@@ -1,5 +1,7 @@
 import numpy as np
 from scipy import io
+from scipy import stats
+from scipy.misc import logsumexp
 import pandas as pd
 
 def read_spam_data():
@@ -74,3 +76,102 @@ class LogisticRegression:
     def score(self, X, y):
         return sum(self.predict(X) == y)/len(y)
 
+class BernoulliNB:
+    """
+    Implements BernoulliNB from sklearn.
+    There are some significant differences in implementation here.
+    Mainly, my version let's once specify a Dirichlet prior on the class
+    probabilities.
+    """
+
+    def __init__(self, alpha = 1, gamma = None):
+        self.alpha = alpha
+        self.gamma = gamma
+        self.fitted = False
+
+    def fit(self, X, y):
+        if self.fitted is False: # first fit, do some initialization
+            self.K = len(np.unique(y)) # assume y takes values 0,1,...,K - 1
+            self.N = 0
+            self.p = X.shape[1]
+            self.class_counts = np.zeros(self.K)
+            self.feature_counts = np.zeros((self.K, self.p))
+            if self.gamma is None:
+                self.gamma = np.zeros(self.K)
+            self.fitted = True
+        self.N += len(X)
+        for i in range(len(X)):
+            k = y[i]
+            self.class_counts[k] += 1
+            for j in range(self.p):
+                if X[i][j] == 1:
+                    self.feature_counts[k][j] += 1
+    
+    def predict_log_proba(self, X):
+        log_probs = np.empty((len(X), self.K))
+        for k in range(self.K):
+            log_probs[:, k] = np.log(self.class_counts[k] + self.gamma[k]) - np.log(self.N + np.sum(self.gamma))
+            for j in range(self.p):
+                log_probs[X[:, j] == 1, k] += np.log(self.feature_counts[k, j] + self.alpha)
+                log_probs[X[:, j] == 0, k] += np.log(self.class_counts[k] - self.feature_counts[k, j] + self.alpha)
+                log_probs[:, k] -= np.log(self.class_counts[k] + 2*self.alpha)
+        for i in range(len(X)):
+            log_probs[i, :] -= logsumexp(log_probs[i, :])
+        return log_probs
+
+    def predict_proba(self, X):
+        return np.exp(self.predict_log_proba(X))
+
+    def predict(self, X):
+        return np.apply_along_axis(np.argmax, axis = 1, arr=self.predict_log_proba(X))
+
+    def score(self, X, y):
+        return np.sum(self.predict(X) == y)/len(y)
+
+class GaussianNB:
+    def __init__(self, gamma = None):
+        self.gamma = gamma
+        self.fitted = False
+        
+    def fit(self, X, y):
+        if self.fitted is False:
+            self.K = len(np.unique(y))
+            self.N = 0
+            self.p = X.shape[1]
+            self.class_counts = np.zeros(self.K)
+            self.feature_sums = np.zeros((self.p, self.K))
+            self.feature_squared_sums = np.zeros((self.p, self.K))
+            if self.gamma is None:
+                self.gamma = np.zeros(self.K)
+            self.fitted = True
+        self.N += len(y)
+        for i in range(len(y)):
+            k = y[i]
+            self.class_counts[k] += 1
+            for j in range(self.p):
+                self.feature_sums[j, k] += X[i, j]
+                self.feature_squared_sums[j, k] += X[i, j]*X[i, j]
+    
+    def predict_log_proba(self, X):
+        log_probs = np.empty((len(X), self.K))
+        for k in range(self.K):
+            log_probs[:, k] = np.log(self.class_counts[k] + self.gamma[k]) - np.log(self.N + np.sum(self.gamma))
+            for i in range(len(X)):
+                for j in range(self.p):
+                    mu_k = self.feature_sums[j, k]/self.class_counts[k]
+                    log_probs[i, k] += stats.norm.logpdf(X[i, j], 
+                                                         loc=mu_k,
+                                                         scale=np.sqrt(self.feature_squared_sums[j, k]/self.class_counts[k] - mu_k*mu_k))
+        for i in range(len(X)):
+            log_probs[i, :] -= logsumexp(log_probs[i, :])
+        return log_probs
+    
+    def predict_proba(self, X):
+        return np.exp(self.predict_log_proba(X))
+
+    def predict(self, X):
+        return np.apply_along_axis(np.argmax, axis = 1, arr=self.predict_log_proba(X))
+
+    def score(self, X, y):
+        return np.sum(self.predict(X) == y)/len(y)
+    
