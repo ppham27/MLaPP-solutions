@@ -39,7 +39,7 @@ def transform_binary(x):
 class LogisticRegression:
     """
     Implements a subset of LogisticRegression from sklearn.
-    My regularization parameter is not the reciprocal, so the implementation
+    My regularization parameter is not the reciprocal.
     """
     def __init__(self, regularization = 1, max_iter=100):
         self.regularization = regularization
