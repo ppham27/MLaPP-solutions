@@ -1,5 +1,3 @@
-# import matplotlib
-# import matplotlib.pyplot as plt
 import argparse
 import logging
 import numpy as np
@@ -9,7 +7,22 @@ import tensorflow as tf
 
 from util import read_all_sarcos_data
 
+# What we want to predict
 TARGET_COLUMN = 'y1'
+
+# Model parameters
+HIDDEN1_UNITS = 70
+HIDDEN2_UNITS = 50
+L1_REGULARIZATION = 1.0
+L2_REGULARIZATION = 14.0
+
+# Tuning parameters for training
+BATCH_SIZE = 1024
+LEARNING_RATE = 0.01
+
+# How often to output summaries
+CHECKPOINT_INTERVAL_SECS = 60
+SUMMARY_INTERVAL_STEPS = 500
 
 def create_feature_columns(data):
     mean = data.mean()
@@ -84,22 +97,6 @@ def _configure_logger(log_level):
         raise ValueError('Invalid log level: {:s}'.format(log_level))
     tf.logging.set_verbosity(numeric_log_level)
 
-
-# Model parameters
-HIDDEN1_UNITS = 50
-HIDDEN2_UNITS = 50
-L1_REGULARIZATION = 1.0
-L2_REGULARIZATION = 15.0
-
-# Tuning parameters for training
-BATCH_SIZE = 1024
-LEARNING_RATE = 0.01
-
-# How often to output summaries
-CHECKPOINT_INTERVAL_SECS = 60
-SUMMARY_INTERVAL_STEPS = 500
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train a Sarcos model.')
 
@@ -137,7 +134,7 @@ if __name__ == '__main__':
     graph = tf.Graph()
     with graph.as_default():
         # Ensure reproducibility while debugging.
-        tf.set_random_seed(2017)
+        tf.set_random_seed(2019)
 
         # Intialize the various layers of the graph.
     
@@ -176,9 +173,10 @@ if __name__ == '__main__':
 
         scaffold = tf.train.Scaffold(saver=tf.train.Saver(
             sharded=True,
-            max_to_keep=100,    # Effectively keep all models.
+            max_to_keep=1000,   # Effectively keep all models.
             allow_empty=True))
         sess = tf.train.MonitoredTrainingSession(
+            scaffold=scaffold,
             save_checkpoint_secs=CHECKPOINT_INTERVAL_SECS,
             save_summaries_steps=SUMMARY_INTERVAL_STEPS,
             log_step_count_steps=SUMMARY_INTERVAL_STEPS,
